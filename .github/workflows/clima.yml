@@ -1,0 +1,25 @@
+name: Reporte del Clima San Pedro
+on:
+  schedule:
+    - cron: '0 9 * * *'
+  workflow_dispatch:
+jobs:
+  enviar-clima:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Instalar Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Instalar dependencias
+        run: pip install requests
+      - name: Ejecutar reporte del clima
+        run: |
+          for i in 1 2 3; do
+            echo "Intento $i..."
+            python clima.py && break
+            echo "Falló intento $i, esperando 30 segundos..."
+            sleep 30
+          done
