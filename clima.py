@@ -1,12 +1,6 @@
 import requests
 import urllib.parse
-import locale
 from datetime import datetime
-
-try:
-    locale.setlocale(locale.LC_TIME, 'es_ES.UTF-8')
-except:
-    pass
 
 LAT = -33.68
 LON = -59.66
@@ -59,7 +53,10 @@ else:
 alerta_helada = f"\n⚠️ ALERTA HELADA — Temperatura mínima: {temp_min}°C" if temp_min <= 2 else ""
 alerta_lluvia = f"\n🌧️ ALERTA LLUVIA — Probabilidad: {prob_lluvia}%" if prob_lluvia >= 70 else ""
 
-fecha_hoy = datetime.now().strftime("%A %d de %B de %Y").capitalize()
+dias = ['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo']
+meses = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre']
+hoy = datetime.now()
+fecha_hoy = f"{dias[hoy.weekday()]} {hoy.day} de {meses[hoy.month-1]} de {hoy.year}"
 
 for dest in DESTINATARIOS:
     mensaje = f"""🌤️ Reporte del clima — San Pedro
