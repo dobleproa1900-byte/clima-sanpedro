@@ -8,7 +8,7 @@ TIMEZONE = "America/Argentina/Buenos_Aires"
 
 # Obtenemos las credenciales desde variables de entorno (GitHub Actions)
 # o puedes poner los valores por defecto entre comillas si ejecutas localmente.
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN", "8955093245:AAFhtow0a9LqMuGapNL0zM2_3YabVGyn3Dw")
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN", "8600687554:AAGz_GBgiJx-M1UhN7gMYvfCnPfVCcYwXK8")
 
 DESTINATARIOS = [
     {"nombre": "Gerardo", "chat_id": os.getenv("CHAT_ID_1", "8640771491")},
