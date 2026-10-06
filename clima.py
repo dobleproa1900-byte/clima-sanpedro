@@ -1,15 +1,21 @@
+import os
 import requests
-import urllib.parse
 from datetime import datetime
 
 LAT = -33.68
 LON = -59.66
 TIMEZONE = "America/Argentina/Buenos_Aires"
+
+# Obtenemos las credenciales desde variables de entorno (GitHub Actions)
+# o puedes poner los valores por defecto entre comillas si ejecutas localmente.
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN", "8955093245:AAFhtow0a9LqMuGapNL0zM2_3YabVGyn3Dw")
+
 DESTINATARIOS = [
-    {"phone": "5493329599250", "apikey": "4769644", "nombre": "Gerardo"},
-    {"phone": "5493329668717", "apikey": "8522696", "nombre": "Valeria"},
+    {"nombre": "Gerardo", "chat_id": os.getenv("CHAT_ID_1", "8640771491")},
+    {"nombre": "Valeria", "chat_id": os.getenv("CHAT_ID_2", "TU_CHAT_ID_2")},
 ]
 
+# 1. Obtener datos meteorológicos de Open-Meteo
 url = (
     f"https://api.open-meteo.com/v1/forecast"
     f"?latitude={LAT}&longitude={LON}"
@@ -37,6 +43,7 @@ uv = daily["uv_index_max"][0]
 sunrise = daily["sunrise"][0].split("T")[1]
 sunset = daily["sunset"][0].split("T")[1]
 
+# 2. Evaluar condiciones y alertas
 if codigo >= 61:
     condicion = "Lluvia 🌧️"
 elif codigo >= 51:
@@ -50,28 +57,47 @@ elif codigo >= 1:
 else:
     condicion = "Despejado ☀️"
 
-alerta_helada = f"\n⚠️ ALERTA HELADA — Temperatura mínima: {temp_min}°C" if temp_min <= 2 else ""
-alerta_lluvia = f"\n🌧️ ALERTA LLUVIA — Probabilidad: {prob_lluvia}%" if prob_lluvia >= 70 else ""
+alerta_helada = f"\n⚠️ *ALERTA HELADA* — Temperatura mínima: {temp_min}°C" if temp_min <= 2 else ""
+alerta_lluvia = f"\n🌧️ *ALERTA LLUVIA* — Probabilidad: {prob_lluvia}%" if prob_lluvia >= 70 else ""
 
-dias = ['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo']
-meses = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre']
+dias = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
+meses = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
 hoy = datetime.now()
 fecha_hoy = f"{dias[hoy.weekday()]} {hoy.day} de {meses[hoy.month-1]} de {hoy.year}"
 
+# 3. Enviar a Telegram
+url_telegram = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+
 for dest in DESTINATARIOS:
-    mensaje = f"""🌤️ Reporte del clima — San Pedro
-📅 {fecha_hoy} — Buenos días {dest['nombre']}!
-🌡️ Ahora: {temp}°C
-📈 Máxima: {temp_max}°C | 📉 Mínima: {temp_min}°C
-☁️ Condición: {condicion}
-💨 Viento: {viento} km/h
-🌧️ Lluvia: {prob_lluvia}% | {lluvia_mm}mm
-🌞 UV: {uv}
-🌅 Sale: {sunrise} | Se oculta: {sunset}{alerta_helada}{alerta_lluvia}
+    if not dest["chat_id"]:
+        continue
+
+    mensaje = f"""🌤️ *Reporte del clima — San Pedro*
+📅 {fecha_hoy} — ¡Buenos días {dest['nombre']}!
+
+🌡️ *Ahora:* {temp}°C
+📈 *Máxima:* {temp_max}°C | 📉 *Mínima:* {temp_min}°C
+☁️ *Condición:* {condicion}
+💨 *Viento:* {viento} km/h
+🌧️ *Lluvia:* {prob_lluvia}% | {lluvia_mm}mm
+🌞 *UV:* {uv}
+🌅 *Sale:* {sunrise} | *Se oculta:* {sunset}{alerta_helada}{alerta_lluvia}
+
 ¡Buen día! 💪"""
-    texto_encoded = urllib.parse.quote(mensaje)
-    url_callmebot = f"https://api.callmebot.com/whatsapp.php?phone={dest['phone']}&text={texto_encoded}&apikey={dest['apikey']}"
-    resp = requests.get(url_callmebot)
-    print(f"Enviado a {dest['nombre']}: {resp.status_code}")
+
+    payload = {
+        "chat_id": dest["chat_id"],
+        "text": mensaje,
+        "parse_mode": "Markdown"
+    }
+
+    try:
+        resp = requests.post(url_telegram, data=payload, timeout=10)
+        if resp.status_code == 200:
+            print(f"✅ Enviado a {dest['nombre']} ({dest['chat_id']}): OK")
+        else:
+            print(f"❌ Error al enviar a {dest['nombre']}: {resp.status_code} - {resp.text}")
+    except Exception as e:
+        print(f"⚠️ Error de conexión con {dest['nombre']}: {e}")
 
 print("Completado:", datetime.now().strftime("%Y-%m-%d %H:%M"))
