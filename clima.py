@@ -1,120 +1,110 @@
+import os
 import requests
+import matplotlib.pyplot as plt
+from PIL import Image, ImageDraw, ImageFont
+from io import BytesIO
 from datetime import datetime
 
-TOKEN = "8938156715:AAGl4Bzqv4g8FFpYi_Dl_kBK2hmk9J7J04A"
-DESTINATARIOS = ["8640771491", "8872397261"]
+# --- CONFIGURACIÓN DE APIS Y TELEGRAM ---
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+CHAT_ID = os.getenv("CHAT_ID")
 
-LAT = -33.68
-LON = -59.66
-TIMEZONE = "America/Argentina/Buenos_Aires"
+LATITUD = -33.6791
+LONGITUD = -59.6582
 
-url = (
-    f"https://api.open-meteo.com/v1/forecast"
-    f"?latitude={LAT}&longitude={LON}"
-    f"&current_weather=true"
-    f"&hourly=temperature_2m,apparent_temperature,relativehumidity_2m,precipitation_probability,windspeed_10m,winddirection_10m,surface_pressure,uv_index"
-    f"&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,"
-    f"precipitation_sum,sunrise,sunset,uv_index_max,windspeed_10m_max,windgusts_10m_max"
-    f"&wind_speed_unit=kmh"
-    f"&timezone={TIMEZONE}"
-    f"&forecast_days=1"
+# 1. OBTENER DATOS DEL CLIMA (Open-Meteo)
+url_clima = f"https://api.open-meteo.com/v1/forecast?latitude={LATITUD}&longitude={LONGITUD}&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m,uv_index&hourly=temperature_2m,precipitation_probability&timezone=America%2FAgentina%2FBuenos_Aires"
+res_clima = requests.get(url_clima).json()
+
+current = res_clima["current"]
+hourly = res_clima["hourly"]
+
+temp_actual = current["temperature_2m"]
+humedad = current["relative_humidity_2m"]
+viento = current["wind_speed_10m"]
+uv_index = current["uv_index"]
+weather_code = current["weather_code"]
+
+# 2. DEFINIR BANNER Y TEMÁTICA SEGÚN EL CLIMA
+def obtener_tematica(code):
+    if code in [0, 1]:
+        return "Día Despejado / Soleado ☀️", "#FF8C00", "#FFF8DC"
+    elif code in [2, 3]:
+        return "Parcialmente Nublado ⛅", "#4682B4", "#F0F8FF"
+    elif code in [51, 61, 80, 95]:
+        return "Alerta de Lluvia / Tormenta 🌧️", "#2F4F4F", "#E6F2FF"
+    else:
+        return "Tiempo Variable 🌤️", "#5F9EA0", "#F5F5F5"
+
+titulo_clima, color_primario, color_fondo = obtener_tematica(weather_code)
+
+# 3. GENERAR EL DASHBOARD INFOGRÁFICO UNIFICADO (Matplotlib)
+fig, (ax_info, ax_graph) = plt.subplots(2, 1, figsize=(8, 10), gridspec_kw={'height_ratios': [1, 1]})
+fig.patch.set_facecolor(color_fondo)
+
+# Panel Superior: Card / Infografía / UV
+ax_info.set_facecolor(color_fondo)
+ax_info.axis("off")
+
+texto_card = (
+    f"SAN PEDRO - REPORTE DIARIO\n"
+    f"Estado: {titulo_clima}\n\n"
+    f"🌡️ Temp. Actual: {temp_actual}°C\n"
+    f"💧 Humedad: {humedad}%\n"
+    f"💨 Viento: {viento} km/h\n"
+    f"☀️ Índice UV: {uv_index} ({'Extremo' if uv_index > 8 else 'Moderado/Bajo'})"
 )
+ax_info.text(0.05, 0.5, texto_card, fontsize=14, fontweight='bold', va='center', color="#1A1A1A")
 
-response = requests.get(url)
-data = response.json()
-w = data["current_weather"]
-daily = data["daily"]
-hourly = data["hourly"]
+# Panel Inferior: Gráfico 24h (Temperatura y Lluvia)
+horas = [datetime.fromisoformat(t).strftime("%H:00") for t in hourly["time"][:24]]
+temps = hourly["temperature_2m"][:24]
+lluvia = hourly["precipitation_probability"][:24]
 
-temp = w["temperature"]
-viento = w["windspeed"]
-codigo = w["weathercode"]
-temp_max = daily["temperature_2m_max"][0]
-temp_min = daily["temperature_2m_min"][0]
-prob_lluvia = daily["precipitation_probability_max"][0]
-lluvia_mm = daily["precipitation_sum"][0]
-uv = daily["uv_index_max"][0]
-sunrise = daily["sunrise"][0].split("T")[1]
-sunset = daily["sunset"][0].split("T")[1]
-viento_max = daily["windspeed_10m_max"][0]
-rafaga = daily["windgusts_10m_max"][0]
+ax_graph.set_facecolor("#FFFFFF")
+ax_graph.plot(horas[::3], temps[::3], color=color_primario, marker='o', linewidth=2.5, label="Temp (°C)")
+ax_graph.set_ylabel("Temperatura (°C)", color=color_primario, fontweight='bold')
 
-# Sensación térmica y humedad de la hora actual
-hora_actual = datetime.now().hour
-temp_aparente = hourly["apparent_temperature"][hora_actual]
-humedad = hourly["relativehumidity_2m"][hora_actual]
-presion = hourly["surface_pressure"][hora_actual]
+ax_lluvia = ax_graph.twinx()
+ax_lluvia.bar(horas[::3], lluvia[::3], alpha=0.3, color="#1E90FF", width=0.4, label="Lluvia (%)")
+ax_lluvia.set_ylabel("Prob. Lluvia (%)", color="#1E90FF", fontweight='bold')
 
-# Dirección del viento
-dir_viento = w.get("winddirection", 0)
-dirs = ["Norte","Noreste","Este","Sureste","Sur","Suroeste","Oeste","Noroeste"]
-dir_nombre = dirs[round(dir_viento / 45) % 8]
+plt.title("Proyección para las próximas 24 horas", fontsize=12, fontweight='bold')
+plt.tight_layout()
 
-# Pronóstico por tramos
-temp_manana = hourly["temperature_2m"][8]
-temp_tarde = hourly["temperature_2m"][14]
-temp_noche = hourly["temperature_2m"][20]
+# Guardar dashboard en memoria
+buffer_dashboard = BytesIO()
+plt.savefig(buffer_dashboard, format='png', dpi=150)
+buffer_dashboard.seek(0)
+plt.close()
 
-if codigo >= 61:
-    condicion = "Lluvia 🌧️"
-elif codigo >= 51:
-    condicion = "Llovizna 🌦️"
-elif codigo >= 45:
-    condicion = "Niebla 🌫️"
-elif codigo >= 3:
-    condicion = "Nublado ☁️"
-elif codigo >= 1:
-    condicion = "Parcialmente nublado ⛅"
-else:
-    condicion = "Despejado ☀️"
+# 4. OBTENER MAPA DE RADAR EN TIEMPO REAL (RainViewer)
+def obtener_radar():
+    try:
+        res_radar = requests.get("https://api.rainviewer.com/public/weather-maps.json").json()
+        host = res_radar["host"]
+        path_radar = res_radar["radar"]["past"][-1]["path"]
+        # Coordenadas aprox centradas cerca de la región
+        url_tile = f"{host}{path_radar}/512/3/3/3/1/0_0.png"
+        img_res = requests.get(url_tile)
+        if img_res.status_code == 200:
+            return BytesIO(img_res.content)
+    except Exception as e:
+        print(f"Error al obtener radar: {e}")
+    return None
 
-if uv <= 2:
-    uv_desc = "Bajo"
-elif uv <= 5:
-    uv_desc = "Moderado"
-elif uv <= 7:
-    uv_desc = "Alto - usar protector"
-elif uv <= 10:
-    uv_desc = "Muy alto"
-else:
-    uv_desc = "Extremo"
+buffer_radar = obtener_radar()
 
-alerta_helada = f"\n⚠️ ALERTA HELADA — Mínima: {temp_min}°C" if temp_min <= 2 else ""
-alerta_lluvia = f"\n🌧️ ALERTA LLUVIA — Probabilidad: {prob_lluvia}%" if prob_lluvia >= 70 else ""
+# 5. ENVIAR A TELEGRAM
+def enviar_imagen_telegram(buffer_img, caption=""):
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto"
+    files = {"photo": ("imagen.png", buffer_img, "image/png")}
+    data = {"chat_id": CHAT_ID, "caption": caption, "parse_mode": "HTML"}
+    requests.post(url, data=data, files=files)
 
-dias = ['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo']
-meses = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre']
-hoy = datetime.now()
-fecha_hoy = f"{dias[hoy.weekday()]} {hoy.day} de {meses[hoy.month-1]} de {hoy.year}"
+# Envió del Dashboard Principal
+enviar_imagen_telegram(buffer_dashboard, caption="☀️ <b>Reporte del Clima - San Pedro</b>")
 
-mensaje = f"""📍 *San Pedro, Buenos Aires*
-📅 {fecha_hoy}
-{condicion}
-
-🌡️ Temperatura: {temp}°C (Sensación: {temp_aparente}°C)
-⬆️ Máx: {temp_max}°C | ⬇️ Mín: {temp_min}°C
-🌧️ Precipitaciones: {prob_lluvia}% ({lluvia_mm}mm)
-💨 Viento: {viento} km/h ({dir_nombre}) | Ráfagas: {rafaga} km/h
-💧 Humedad: {humedad}%
-☀️ Índice UV: {uv} ({uv_desc})
-📉 Presión: {presion:.0f} hPa
-
-🕒 *Pronóstico por tramos:*
-- Mañana: 🌤️ {temp_manana}°C
-- Tarde: ☀️ {temp_tarde}°C
-- Noche: 🌙 {temp_noche}°C
-
-🌅 Amanecer: {sunrise} hs | 🌇 Atardecer: {sunset} hs{alerta_helada}{alerta_lluvia}
-
-_Fuente: Open-Meteo_"""
-
-url_telegram = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
-for chat_id in DESTINATARIOS:
-    resp = requests.post(url_telegram, json={
-        "chat_id": chat_id,
-        "text": mensaje,
-        "parse_mode": "Markdown"
-    })
-    print(f"Enviado a {chat_id}: {resp.status_code}")
-
-print("Completado:", datetime.now().strftime("%Y-%m-%d %H:%M"))
+# Envió del Mapa de Radar (si estuvo disponible)
+if buffer_radar:
+    enviar_imagen_telegram(buffer_radar, caption="🛰️ <b>Cobertura de Radar / Satélite en vivo</b>")

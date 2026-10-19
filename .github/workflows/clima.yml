@@ -9,6 +9,7 @@ jobs:
   enviar-clima:
     runs-on: ubuntu-latest
     steps:
+      - steps:
       - name: Checkout repositorio
         uses: actions/checkout@v4
 
@@ -18,9 +19,14 @@ jobs:
           python-version: '3.11'
 
       - name: Instalar dependencias
-        run: pip install requests
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
 
       - name: Ejecutar reporte del clima
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          CHAT_ID: ${{ secrets.CHAT_ID }}
         run: |
           for i in 1 2 3; do
             echo "Intento $i..."
