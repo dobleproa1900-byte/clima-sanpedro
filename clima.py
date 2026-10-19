@@ -11,11 +11,17 @@ CHAT_ID = os.getenv("CHAT_ID")
 LATITUD = -33.6791
 LONGITUD = -59.6582
 
-# 1. OBTENER DATOS DEL CLIMA (Open-Meteo) con timeout de 10 segundos
-url_clima = f"https://api.open-meteo.com/v1/forecast?latitude={LATITUD}&longitude={LONGITUD}&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m,uv_index&hourly=temperature_2m,precipitation_probability&timezone=America%2FAgentina%2FBuenos_Aires"
+# 1. OBTENER DATOS DEL CLIMA (Open-Meteo)
+url_clima = f"https://api.open-meteo.com/v1/forecast?latitude={LATITUD}&longitude={LONGITUD}&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m,uv_index&hourly=temperature_2m,precipitation_probability&timezone=America%2FArgentina%2FBuenos_Aires"
 
 try:
-    res_clima = requests.get(url_clima, timeout=10).json()
+    res = requests.get(url_clima, timeout=15)
+    res.raise_for_status()
+    res_clima = res.json()
+
+    if "current" not in res_clima:
+        raise ValueError(f"Respuesta inesperada de la API: {res_clima}")
+
     current = res_clima["current"]
     hourly = res_clima["hourly"]
 
@@ -80,7 +86,7 @@ plt.savefig(buffer_dashboard, format='png', dpi=150)
 buffer_dashboard.seek(0)
 plt.close()
 
-# 4. OBTENER MAPA DE RADAR CON TIMEOUT (RainViewer)
+# 4. OBTENER MAPA DE RADAR (RainViewer)
 def obtener_radar():
     try:
         res_radar = requests.get("https://api.rainviewer.com/public/weather-maps.json", timeout=10).json()
@@ -91,18 +97,20 @@ def obtener_radar():
         if img_res.status_code == 200:
             return BytesIO(img_res.content)
     except Exception as e:
-        print(f"Aviso: Radar no disponible o demorado ({e})")
+        print(f"Aviso: Radar no disponible ({e})")
     return None
 
 buffer_radar = obtener_radar()
 
-# 5. ENVIAR A TELEGRAM CON TIMEOUT DE 20 SEGUNDOS
+# 5. ENVIAR A TELEGRAM
 def enviar_imagen_telegram(buffer_img, caption=""):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto"
     files = {"photo": ("imagen.png", buffer_img, "image/png")}
     data = {"chat_id": CHAT_ID, "caption": caption, "parse_mode": "HTML"}
     try:
-        requests.post(url, data=data, files=files, timeout=20)
+        res = requests.post(url, data=data, files=files, timeout=20)
+        print(f"Respuesta de Telegram (Status {res.status_code}): {res.text}")
+        res.raise_for_status()
     except Exception as e:
         print(f"Error al enviar foto a Telegram: {e}")
 
