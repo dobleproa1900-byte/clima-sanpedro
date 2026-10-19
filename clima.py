@@ -37,13 +37,13 @@ except Exception as e:
 # 2. DEFINIR BANNER Y TEMÁTICA SEGÚN EL CLIMA
 def obtener_tematica(code):
     if code in [0, 1]:
-        return "Día Despejado / Soleado ☀️", "#FF8C00", "#FFF8DC"
+        return "Dia Despejado / Soleado", "#FF8C00", "#FFF8DC"
     elif code in [2, 3]:
-        return "Parcialmente Nublado ⛅", "#4682B4", "#F0F8FF"
+        return "Parcialmente Nublado", "#4682B4", "#F0F8FF"
     elif code in [51, 61, 80, 95]:
-        return "Alerta de Lluvia / Tormenta 🌧️", "#2F4F4F", "#E6F2FF"
+        return "Alerta de Lluvia / Tormenta", "#2F4F4F", "#E6F2FF"
     else:
-        return "Tiempo Variable 🌤️", "#5F9EA0", "#F5F5F5"
+        return "Tiempo Variable", "#5F9EA0", "#F5F5F5"
 
 titulo_clima, color_primario, color_fondo = obtener_tematica(weather_code)
 
@@ -58,10 +58,10 @@ ax_info.axis("off")
 texto_card = (
     f"SAN PEDRO - REPORTE DIARIO\n"
     f"Estado: {titulo_clima}\n\n"
-    f"🌡️ Temp. Actual: {temp_actual}°C\n"
-    f"💧 Humedad: {humedad}%\n"
-    f"💨 Viento: {viento} km/h\n"
-    f"☀️ Índice UV: {uv_index} ({'Extremo' if uv_index > 8 else 'Moderado/Bajo'})"
+    f"• Temp. Actual: {temp_actual}°C\n"
+    f"• Humedad: {humedad}%\n"
+    f"• Viento: {viento} km/h\n"
+    f"• Indice UV: {uv_index} ({'Extremo' if uv_index > 8 else 'Moderado/Bajo'})"
 )
 ax_info.text(0.05, 0.5, texto_card, fontsize=14, fontweight='bold', va='center', color="#1A1A1A")
 
@@ -78,7 +78,7 @@ ax_lluvia = ax_graph.twinx()
 ax_lluvia.bar(horas[::3], lluvia[::3], alpha=0.3, color="#1E90FF", width=0.4, label="Lluvia (%)")
 ax_lluvia.set_ylabel("Prob. Lluvia (%)", color="#1E90FF", fontweight='bold')
 
-plt.title("Proyección para las próximas 24 horas", fontsize=12, fontweight='bold')
+plt.title("Proyeccion para las proximas 24 horas", fontsize=12, fontweight='bold')
 plt.tight_layout()
 
 buffer_dashboard = BytesIO()
