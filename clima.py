@@ -1,7 +1,6 @@
 import os
 import requests
 import matplotlib.pyplot as plt
-from PIL import Image, ImageDraw, ImageFont
 from io import BytesIO
 from datetime import datetime
 
@@ -12,18 +11,22 @@ CHAT_ID = os.getenv("CHAT_ID")
 LATITUD = -33.6791
 LONGITUD = -59.6582
 
-# 1. OBTENER DATOS DEL CLIMA (Open-Meteo)
+# 1. OBTENER DATOS DEL CLIMA (Open-Meteo) con timeout de 10 segundos
 url_clima = f"https://api.open-meteo.com/v1/forecast?latitude={LATITUD}&longitude={LONGITUD}&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m,uv_index&hourly=temperature_2m,precipitation_probability&timezone=America%2FAgentina%2FBuenos_Aires"
-res_clima = requests.get(url_clima).json()
 
-current = res_clima["current"]
-hourly = res_clima["hourly"]
+try:
+    res_clima = requests.get(url_clima, timeout=10).json()
+    current = res_clima["current"]
+    hourly = res_clima["hourly"]
 
-temp_actual = current["temperature_2m"]
-humedad = current["relative_humidity_2m"]
-viento = current["wind_speed_10m"]
-uv_index = current["uv_index"]
-weather_code = current["weather_code"]
+    temp_actual = current["temperature_2m"]
+    humedad = current["relative_humidity_2m"]
+    viento = current["wind_speed_10m"]
+    uv_index = current["uv_index"]
+    weather_code = current["weather_code"]
+except Exception as e:
+    print(f"Error al obtener datos del clima: {e}")
+    exit(1)
 
 # 2. DEFINIR BANNER Y TEMÁTICA SEGÚN EL CLIMA
 def obtener_tematica(code):
@@ -38,11 +41,11 @@ def obtener_tematica(code):
 
 titulo_clima, color_primario, color_fondo = obtener_tematica(weather_code)
 
-# 3. GENERAR EL DASHBOARD INFOGRÁFICO UNIFICADO (Matplotlib)
+# 3. GENERAR DASHBOARD INFOGRÁFICO UNIFICADO (Matplotlib)
 fig, (ax_info, ax_graph) = plt.subplots(2, 1, figsize=(8, 10), gridspec_kw={'height_ratios': [1, 1]})
 fig.patch.set_facecolor(color_fondo)
 
-# Panel Superior: Card / Infografía / UV
+# Panel Superior: Infografía
 ax_info.set_facecolor(color_fondo)
 ax_info.axis("off")
 
@@ -56,7 +59,7 @@ texto_card = (
 )
 ax_info.text(0.05, 0.5, texto_card, fontsize=14, fontweight='bold', va='center', color="#1A1A1A")
 
-# Panel Inferior: Gráfico 24h (Temperatura y Lluvia)
+# Panel Inferior: Gráfico 24h
 horas = [datetime.fromisoformat(t).strftime("%H:00") for t in hourly["time"][:24]]
 temps = hourly["temperature_2m"][:24]
 lluvia = hourly["precipitation_probability"][:24]
@@ -72,39 +75,39 @@ ax_lluvia.set_ylabel("Prob. Lluvia (%)", color="#1E90FF", fontweight='bold')
 plt.title("Proyección para las próximas 24 horas", fontsize=12, fontweight='bold')
 plt.tight_layout()
 
-# Guardar dashboard en memoria
 buffer_dashboard = BytesIO()
 plt.savefig(buffer_dashboard, format='png', dpi=150)
 buffer_dashboard.seek(0)
 plt.close()
 
-# 4. OBTENER MAPA DE RADAR EN TIEMPO REAL (RainViewer)
+# 4. OBTENER MAPA DE RADAR CON TIMEOUT (RainViewer)
 def obtener_radar():
     try:
-        res_radar = requests.get("https://api.rainviewer.com/public/weather-maps.json").json()
+        res_radar = requests.get("https://api.rainviewer.com/public/weather-maps.json", timeout=10).json()
         host = res_radar["host"]
         path_radar = res_radar["radar"]["past"][-1]["path"]
-        # Coordenadas aprox centradas cerca de la región
         url_tile = f"{host}{path_radar}/512/3/3/3/1/0_0.png"
-        img_res = requests.get(url_tile)
+        img_res = requests.get(url_tile, timeout=10)
         if img_res.status_code == 200:
             return BytesIO(img_res.content)
     except Exception as e:
-        print(f"Error al obtener radar: {e}")
+        print(f"Aviso: Radar no disponible o demorado ({e})")
     return None
 
 buffer_radar = obtener_radar()
 
-# 5. ENVIAR A TELEGRAM
+# 5. ENVIAR A TELEGRAM CON TIMEOUT DE 20 SEGUNDOS
 def enviar_imagen_telegram(buffer_img, caption=""):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto"
     files = {"photo": ("imagen.png", buffer_img, "image/png")}
     data = {"chat_id": CHAT_ID, "caption": caption, "parse_mode": "HTML"}
-    requests.post(url, data=data, files=files)
+    try:
+        requests.post(url, data=data, files=files, timeout=20)
+    except Exception as e:
+        print(f"Error al enviar foto a Telegram: {e}")
 
-# Envió del Dashboard Principal
+# Envíos
 enviar_imagen_telegram(buffer_dashboard, caption="☀️ <b>Reporte del Clima - San Pedro</b>")
 
-# Envió del Mapa de Radar (si estuvo disponible)
 if buffer_radar:
     enviar_imagen_telegram(buffer_radar, caption="🛰️ <b>Cobertura de Radar / Satélite en vivo</b>")
